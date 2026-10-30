@@ -1,0 +1,1432 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marine Guard – Smart Maritime Safety & Rescue Monitoring System</title>
+  
+  <!-- Leaflet & Chart.js CDNs -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+
+  <style>
+    /* ==========================================================================
+       MARINE GUARD DESIGN SYSTEM
+       Theme: Deep Navy Blue (#071B33), Ocean Blue (#087CA7), Accent Cyan (#18C6D9)
+       ========================================================================== */
+    :root {
+      --primary-navy: #071B33;
+      --primary-navy-dark: #040F1D;
+      --secondary-ocean: #087CA7;
+      --accent-cyan: #18C6D9;
+      --accent-cyan-glow: rgba(24, 198, 217, 0.35);
+      
+      --status-normal: #2A9D8F;
+      --status-normal-bg: rgba(42, 157, 143, 0.15);
+      --status-warning: #F4A261;
+      --status-warning-bg: rgba(244, 162, 97, 0.18);
+      --status-emergency: #E63946;
+      --status-emergency-bg: rgba(230, 57, 70, 0.2);
+      --status-offline: #6C757D;
+      --status-offline-bg: rgba(108, 117, 125, 0.15);
+
+      --bg-app: #F4F7FB;
+      --bg-card: #FFFFFF;
+      --bg-sidebar: #071B33;
+      --text-main: #1C2833;
+      --text-muted: #627282;
+      --text-sidebar: #B0C4DE;
+      --border-color: #E2E8F0;
+      --card-shadow: 0 4px 20px rgba(7, 27, 51, 0.06);
+      --card-shadow-hover: 0 8px 30px rgba(7, 27, 51, 0.12);
+      
+      --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-full: 9999px;
+      --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    [data-theme="dark"] {
+      --bg-app: #040F1D;
+      --bg-card: #0B203E;
+      --bg-sidebar: #06172D;
+      --text-main: #F1F5F9;
+      --text-muted: #94A3B8;
+      --text-sidebar: #8EA4C1;
+      --border-color: #162E4E;
+      --card-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+      --card-shadow-hover: 0 8px 32px rgba(24, 198, 217, 0.15);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-family);
+      background-color: var(--bg-app);
+      color: var(--text-main);
+      line-height: 1.5;
+      min-height: 100vh;
+      overflow-x: hidden;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    a { text-decoration: none; color: inherit; }
+    button { cursor: pointer; border: none; background: none; font-family: inherit; outline: none; }
+
+    /* App Layout */
+    .app-layout { display: flex; min-height: 100vh; }
+    
+    /* Sidebar */
+    .sidebar {
+      width: 260px;
+      background: var(--bg-sidebar);
+      color: var(--text-sidebar);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0; bottom: 0; left: 0;
+      z-index: 100;
+      border-right: 1px solid rgba(255, 255, 255, 0.08);
+      transition: var(--transition);
+      overflow-y: auto;
+    }
+    .sidebar-header {
+      padding: 1.5rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .brand-icon {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg, var(--secondary-ocean), var(--accent-cyan));
+      border-radius: var(--radius-md);
+      display: flex; align-items: center; justify-content: center;
+      color: #FFF; box-shadow: 0 4px 12px var(--accent-cyan-glow);
+      flex-shrink: 0;
+    }
+    .brand-title { font-size: 1.15rem; font-weight: 800; color: #FFF; letter-spacing: -0.02em; }
+    .brand-sub { font-size: 0.7rem; color: var(--accent-cyan); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; }
+    
+    .sidebar-menu { list-style: none; padding: 1rem 0.75rem; display: flex; flex-direction: column; gap: 0.35rem; flex: 1; }
+    .menu-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 700; padding: 0.75rem 0.75rem 0.25rem; }
+    .nav-btn {
+      width: 100%;
+      display: flex; align-items: center; gap: 0.85rem;
+      padding: 0.75rem 0.85rem;
+      border-radius: var(--radius-md);
+      color: var(--text-sidebar);
+      font-size: 0.9rem; font-weight: 500;
+      transition: var(--transition);
+      text-align: left;
+    }
+    .nav-btn:hover { background: rgba(255, 255, 255, 0.07); color: #FFF; transform: translateX(3px); }
+    .nav-btn.active {
+      background: linear-gradient(90deg, rgba(8, 124, 167, 0.25), rgba(24, 198, 217, 0.15));
+      color: var(--accent-cyan);
+      font-weight: 700;
+      border-left: 3px solid var(--accent-cyan);
+    }
+    .badge-counter {
+      margin-left: auto;
+      background: var(--status-emergency);
+      color: white; font-size: 0.7rem; font-weight: 700;
+      padding: 0.15rem 0.5rem; border-radius: var(--radius-full);
+    }
+
+    .main-wrapper {
+      flex: 1;
+      margin-left: 260px;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      transition: var(--transition);
+    }
+
+    /* Topbar */
+    .topbar {
+      height: 70px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-color);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 1.75rem;
+      position: sticky; top: 0; z-index: 90;
+      backdrop-filter: blur(8px);
+    }
+    .topbar-left { display: flex; align-items: center; gap: 1rem; }
+    .mobile-toggle {
+      display: none; width: 40px; height: 40px; border-radius: var(--radius-sm);
+      align-items: center; justify-content: center; background: rgba(0,0,0,0.05);
+      color: var(--text-main);
+    }
+    .page-title h1 { font-size: 1.35rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.01em; }
+    .page-title p { font-size: 0.78rem; color: var(--text-muted); }
+
+    .topbar-right { display: flex; align-items: center; gap: 0.85rem; }
+    .sim-mode-badge {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.4rem 0.85rem; border-radius: var(--radius-full);
+      font-size: 0.78rem; font-weight: 700;
+      background: rgba(24, 198, 217, 0.15); color: var(--secondary-ocean);
+      border: 1px solid var(--accent-cyan);
+    }
+    .pulse-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--accent-cyan);
+      display: inline-block; animation: pulse-ring 1.5s infinite;
+    }
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(24, 198, 217, 0.7); }
+      70% { box-shadow: 0 0 0 6px rgba(24, 198, 217, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(24, 198, 217, 0); }
+    }
+    .action-icon-btn {
+      width: 40px; height: 40px; border-radius: var(--radius-md);
+      display: flex; align-items: center; justify-content: center;
+      background: var(--bg-app); border: 1px solid var(--border-color);
+      color: var(--text-main); transition: var(--transition);
+    }
+    .action-icon-btn:hover { color: var(--secondary-ocean); border-color: var(--secondary-ocean); }
+    .action-icon-btn.active-siren {
+      background: var(--status-emergency-bg); color: var(--status-emergency);
+      border-color: var(--status-emergency); animation: siren-shake 0.5s infinite;
+    }
+    @keyframes siren-shake {
+      0%, 100% { transform: rotate(0); }
+      25% { transform: rotate(-8deg); }
+      75% { transform: rotate(8deg); }
+    }
+
+    /* Page Content & Grid */
+    .page-content { padding: 1.75rem; flex: 1; max-width: 1600px; width: 100%; margin: 0 auto; }
+    .tab-view { display: none; }
+    .tab-view.active { display: block; animation: fade-in 0.3s ease; }
+    @keyframes fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem; }
+    .grid-dashboard { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; }
+
+    /* Cards */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      box-shadow: var(--card-shadow);
+      transition: var(--transition);
+      position: relative;
+    }
+    .card:hover { box-shadow: var(--card-shadow-hover); }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 1.25rem; padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .card-title { font-size: 1.05rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 0.5rem; }
+    .card-subtitle { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.15rem; }
+
+    /* Stat Cards */
+    .stat-card { display: flex; align-items: center; gap: 1.25rem; padding: 1.25rem 1.5rem; }
+    .stat-icon {
+      width: 52px; height: 52px; border-radius: var(--radius-md);
+      display: flex; align-items: center; justify-content: center; font-size: 1.4rem;
+      flex-shrink: 0;
+    }
+    .stat-icon.navy { background: rgba(7, 27, 51, 0.1); color: var(--primary-navy); }
+    .stat-icon.green { background: var(--status-normal-bg); color: var(--status-normal); }
+    .stat-icon.red { background: var(--status-emergency-bg); color: var(--status-emergency); }
+    .stat-icon.orange { background: var(--status-warning-bg); color: var(--status-warning); }
+    .stat-icon.cyan { background: rgba(24, 198, 217, 0.2); color: #0090A0; }
+
+    .stat-info { flex: 1; }
+    .stat-label { font-size: 0.78rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+    .stat-value { font-size: 1.75rem; font-weight: 800; color: var(--text-main); line-height: 1.2; margin-top: 0.25rem; }
+    .stat-delta { font-size: 0.72rem; font-weight: 600; margin-top: 0.35rem; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+      padding: 0.65rem 1.25rem; border-radius: var(--radius-md); font-size: 0.88rem; font-weight: 600;
+      transition: var(--transition); cursor: pointer; border: 1px solid transparent;
+    }
+    .btn-primary { background: linear-gradient(135deg, var(--secondary-ocean), #066284); color: #FFF; box-shadow: 0 4px 14px rgba(8, 124, 167, 0.3); }
+    .btn-primary:hover { transform: translateY(-2px); }
+    .btn-accent { background: var(--accent-cyan); color: var(--primary-navy); font-weight: 700; }
+    .btn-accent:hover { background: #39D4E5; box-shadow: 0 4px 16px var(--accent-cyan-glow); transform: translateY(-2px); }
+    .btn-emergency { background: var(--status-emergency); color: white; }
+    .btn-emergency:hover { background: #D32F2F; box-shadow: 0 4px 16px rgba(230, 57, 70, 0.4); }
+    .btn-outline { border-color: var(--border-color); color: var(--text-main); background: transparent; }
+    .btn-outline:hover { border-color: var(--secondary-ocean); color: var(--secondary-ocean); background: rgba(8, 124, 167, 0.05); }
+    .btn-sm { padding: 0.4rem 0.75rem; font-size: 0.78rem; border-radius: var(--radius-sm); }
+
+    /* Badges & Tags */
+    .badge { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.65rem; border-radius: var(--radius-full); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; }
+    .badge-normal { background: var(--status-normal-bg); color: var(--status-normal); }
+    .badge-warning { background: var(--status-warning-bg); color: var(--status-warning); }
+    .badge-emergency { background: var(--status-emergency-bg); color: var(--status-emergency); }
+    .badge-offline { background: var(--status-offline-bg); color: var(--status-offline); }
+
+    .tag-critical { background: #FFD2D5; color: #9E0000; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.72rem; }
+    .tag-high { background: #FFE8D6; color: #A64B00; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.72rem; }
+    .tag-medium { background: #FFF4D2; color: #8A6500; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.72rem; }
+
+    /* Table */
+    .table-responsive { width: 100%; overflow-x: auto; }
+    .table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem; }
+    .table th { padding: 0.85rem 1rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border-color); }
+    .table td { padding: 0.85rem 1rem; border-bottom: 1px solid var(--border-color); color: var(--text-main); }
+    .table tbody tr:hover { background: rgba(8, 124, 167, 0.03); }
+
+    /* Forms */
+    .form-group { margin-bottom: 1.25rem; }
+    .form-label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--text-main); margin-bottom: 0.45rem; }
+    .form-input, .form-select {
+      width: 100%; padding: 0.65rem 0.9rem; border: 1px solid var(--border-color);
+      border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main);
+      font-family: inherit; font-size: 0.88rem;
+    }
+    .form-input:focus, .form-select:focus { border-color: var(--secondary-ocean); outline: none; }
+
+    /* Safety Status Banner */
+    .safety-banner {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 1.5rem; border-radius: var(--radius-md); margin-bottom: 1.75rem; border: 1px solid;
+    }
+    .safety-banner.normal { background: var(--status-normal-bg); border-color: var(--status-normal); color: #1B4D3E; }
+    .safety-banner.emergency { background: var(--status-emergency-bg); border-color: var(--status-emergency); color: #8B0000; animation: pulse-banner 2s infinite; }
+    @keyframes pulse-banner {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(230, 57, 70, 0.4); }
+      50% { box-shadow: 0 0 0 10px rgba(230, 57, 70, 0); }
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(7, 27, 51, 0.6); backdrop-filter: blur(4px);
+      z-index: 1000; display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: var(--transition);
+    }
+    .modal-overlay.active { opacity: 1; pointer-events: auto; }
+    .modal {
+      background: var(--bg-card); border-radius: var(--radius-lg); max-width: 520px; width: 90%;
+      padding: 2rem; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+    }
+
+    /* 3D Vest Orientation Box Canvas */
+    .imu-canvas-container {
+      height: 220px; background: var(--bg-app); border-radius: var(--radius-md);
+      display: flex; align-items: center; justify-content: center; border: 1px dashed var(--border-color);
+    }
+    .piezo-canvas {
+      width: 100%; height: 120px; background: #071B33; border-radius: var(--radius-md);
+    }
+
+    /* Toast */
+    .toast-container {
+      position: fixed; bottom: 2rem; right: 2rem; z-index: 9999;
+      display: flex; flex-direction: column; gap: 0.75rem; max-width: 400px;
+    }
+    .toast {
+      background: var(--bg-card); color: var(--text-main); padding: 1rem 1.25rem;
+      border-radius: var(--radius-md); box-shadow: var(--card-shadow-hover);
+      border-left: 4px solid var(--secondary-ocean); display: flex; align-items: flex-start; gap: 0.75rem;
+    }
+    .toast.danger { border-left-color: var(--status-emergency); }
+    .toast.success { border-left-color: var(--status-normal); }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .sidebar { transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .main-wrapper { margin-left: 0; }
+      .mobile-toggle { display: flex; }
+      .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); }
+      .grid-dashboard { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 768px) {
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+      .page-content { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-icon">
+          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </div>
+        <div>
+          <div class="brand-title">MARINE GUARD</div>
+          <div class="brand-sub">SAR CONTROL</div>
+        </div>
+      </div>
+
+      <ul class="sidebar-menu">
+        <li class="menu-label">Operations</li>
+        <li><button class="nav-btn active" onclick="switchTab('dashboard')">📊 Main Dashboard</button></li>
+        <li><button class="nav-btn" onclick="switchTab('sensors')">🌡️ Sensor Monitoring</button></li>
+        <li><button class="nav-btn" onclick="switchTab('gps')">📍 GPS Location Map</button></li>
+        <li>
+          <button class="nav-btn" onclick="switchTab('alerts')">
+            🚨 Emergency Alerts
+            <span class="badge-counter" id="sidebar-alert-badge" style="display:none;">0</span>
+          </button>
+        </li>
+
+        <li class="menu-label">Management</li>
+        <li><button class="nav-btn" onclick="switchTab('devices')">🦺 Device Registry</button></li>
+        <li><button class="nav-btn" onclick="switchTab('analytics')">📈 Reports & Analytics</button></li>
+        <li><button class="nav-btn" onclick="switchTab('settings')">⚙️ Safety Thresholds</button></li>
+        <li><button class="nav-btn" onclick="switchTab('landing')">🌐 Project Showcase</button></li>
+      </ul>
+
+      <div style="padding: 1rem 0.75rem; border-top: 1px solid rgba(255,255,255,0.08);">
+        <div style="display:flex; align-items:center; gap:0.75rem; padding:0.5rem; background:rgba(255,255,255,0.04); border-radius:var(--radius-md);">
+          <div style="width:36px; height:36px; border-radius:50%; background:var(--secondary-ocean); color:white; display:flex; align-items:center; justify-content:center; font-weight:700;">A</div>
+          <div style="flex:1; overflow:hidden;">
+            <div style="font-size:0.82rem; font-weight:700; color:#FFF;">Chief SAR Officer</div>
+            <div style="font-size:0.7rem; color:var(--accent-cyan);">admin@marineguard.io</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main App Wrapper -->
+    <div class="main-wrapper">
+      <!-- Topbar Header -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-toggle" onclick="toggleSidebar()">☰</button>
+          <div class="page-title">
+            <h1 id="topbar-title">Maritime Rescue Operations Dashboard</h1>
+            <p id="topbar-sub">Smart Rescue Jacket Live Telemetry & Coordinate Tracking</p>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <div class="sim-mode-badge" id="sim-badge" onclick="toggleSimulationMode()" title="Toggle Demo / Hardware Mode" style="cursor:pointer;">
+            <span class="pulse-dot"></span>
+            <span id="sim-badge-text">SIMULATION MODE (DEMO)</span>
+          </div>
+
+          <button class="action-icon-btn" id="siren-btn" onclick="toggleAudioAlarm()" title="Emergency Siren Sound Toggle">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M11 5L6 9H2v6h4l5 4V5z"/></svg>
+          </button>
+
+          <button class="action-icon-btn" onclick="toggleTheme()" title="Toggle Dark / Light Theme">
+            🌓
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Body Content -->
+      <main class="page-content">
+        <!-- Interactive Emergency Simulation Sandbox Bar -->
+        <div class="card" style="background: linear-gradient(135deg, rgba(7, 27, 51, 0.04), rgba(8, 124, 167, 0.08)); border: 1px dashed var(--secondary-ocean); margin-bottom: 1.5rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+            <div>
+              <div style="display:flex; align-items:center; gap:0.5rem;">
+                <span class="badge" style="background:var(--secondary-ocean); color:white;">LIVE SANDBOX</span>
+                <strong style="font-size:0.92rem;">Emergency Event Simulation Controls</strong>
+              </div>
+              <p style="font-size:0.78rem; color:var(--text-muted); margin-top:2px;">
+                Trigger simulated maritime safety events to evaluate Web Audio alarms, Leaflet marker updates, and SAR alerts.
+              </p>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
+              <button class="btn btn-sm btn-emergency" onclick="triggerSimulatedEmergency('POTENTIAL_FALL')">⚡ Fall Overboard (3.6g)</button>
+              <button class="btn btn-sm btn-emergency" style="background:#B71C1C;" onclick="triggerSimulatedEmergency('MANUAL_SOS')">🆘 Manual SOS Distress</button>
+              <button class="btn btn-sm" style="background:var(--status-warning); color:white;" onclick="triggerSimulatedEmergency('ABNORMAL_TILT')">⚠️ Vessel Tilt (78°)</button>
+              <button class="btn btn-sm btn-outline" onclick="triggerSimulatedEmergency('HYPOTHERMIA')">❄️ Cold Immersion (11°C)</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================ -->
+        <!-- TAB 1: MAIN DASHBOARD                                            -->
+        <!-- ================================================================ -->
+        <div class="tab-view active" id="view-dashboard">
+          <div class="safety-banner normal" id="global-safety-banner">
+            <div>
+              <strong id="banner-status-title" style="font-size:1.05rem; text-transform:uppercase;">NORMAL RESCUE READINESS</strong>
+              <div id="banner-status-desc" style="font-size:0.85rem; margin-top:2px;">All registered rescue jackets & wearers are within safe operating bounds.</div>
+            </div>
+            <button class="btn btn-sm btn-outline" onclick="switchTab('alerts')">View Incidents →</button>
+          </div>
+
+          <div class="grid-4" style="margin-bottom: 1.75rem;">
+            <div class="card stat-card">
+              <div class="stat-icon navy">🦺</div>
+              <div class="stat-info">
+                <div class="stat-label">Total Devices</div>
+                <div class="stat-value" id="dash-total-devices">3</div>
+                <div class="stat-delta">Registered Jackets</div>
+              </div>
+            </div>
+
+            <div class="card stat-card">
+              <div class="stat-icon green">⚓</div>
+              <div class="stat-info">
+                <div class="stat-label">Active Wearers</div>
+                <div class="stat-value" id="dash-active-devices" style="color:var(--status-normal);">3</div>
+                <div class="stat-delta">Transmitting Telemetry</div>
+              </div>
+            </div>
+
+            <div class="card stat-card">
+              <div class="stat-icon red">🚨</div>
+              <div class="stat-info">
+                <div class="stat-label">Emergency Alerts</div>
+                <div class="stat-value" id="dash-emergency-alerts" style="color:var(--status-emergency);">0</div>
+                <div class="stat-delta">Requires SAR Response</div>
+              </div>
+            </div>
+
+            <div class="card stat-card">
+              <div class="stat-icon orange">📶</div>
+              <div class="stat-info">
+                <div class="stat-label">Comm Issues</div>
+                <div class="stat-value" id="dash-comm-issues">0</div>
+                <div class="stat-delta">Offline / Fault Nodes</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-dashboard" style="margin-bottom: 1.75rem;">
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h3 class="card-title">Coastal Fleet Tracking Map</h3>
+                  <div class="card-subtitle">Live offshore coordinates in Kanyakumari coastal waters</div>
+                </div>
+                <button class="btn btn-sm btn-outline" onclick="switchTab('gps')">Fullscreen Map →</button>
+              </div>
+              <div id="dash-map" style="height: 320px; border-radius: var(--radius-md);"></div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h3 class="card-title">Latest Telemetry Stream</h3>
+                  <div class="card-subtitle">Real-time incoming ESP32 packet</div>
+                </div>
+                <span class="badge" style="background:var(--accent-cyan-glow); color:var(--primary-navy);">LIVE</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:1rem;">
+                <div style="background:var(--bg-app); padding:0.9rem; border-radius:var(--radius-md);">
+                  <span style="font-size:0.75rem; color:var(--text-muted); font-weight:700;">TRANSMITTING JACKET</span>
+                  <div style="font-size:1.3rem; font-weight:800; color:var(--secondary-ocean);" id="dash-live-device">MG001 (Captain Selvam)</div>
+                </div>
+                <div class="grid-2">
+                  <div style="background:var(--bg-app); padding:0.75rem; border-radius:var(--radius-md);">
+                    <span style="font-size:0.72rem; color:var(--text-muted); font-weight:700;">TEMPERATURE</span>
+                    <div style="font-size:1.2rem; font-weight:800; color:#E63946;" id="dash-live-temp">29.4°C</div>
+                  </div>
+                  <div style="background:var(--bg-app); padding:0.75rem; border-radius:var(--radius-md);">
+                    <span style="font-size:0.72rem; color:var(--text-muted); font-weight:700;">HUMIDITY</span>
+                    <div style="font-size:1.2rem; font-weight:800; color:#087CA7;" id="dash-live-hum">76.2%</div>
+                  </div>
+                </div>
+                <button class="btn btn-primary" onclick="switchTab('sensors')">Inspect Sensor Waveforms →</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Recent Emergency Distress Incidents</h3>
+              <button class="btn btn-sm btn-outline" onclick="switchTab('alerts')">All Incidents →</button>
+            </div>
+            <div class="table-responsive">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Alert ID</th>
+                    <th>Device</th>
+                    <th>Wearer</th>
+                    <th>Severity</th>
+                    <th>Incident Summary</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="dash-events-tbody">
+                  <tr>
+                    <td colspan="6" style="text-align:center; padding:2rem; color:var(--text-muted);">
+                      All monitored fishermen operating under normal safety limits.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================ -->
+        <!-- TAB 2: SENSOR MONITORING                                         -->
+        <!-- ================================================================ -->
+        <div class="tab-view" id="view-sensors">
+          <div class="grid-4" style="margin-bottom: 1.75rem;">
+            <div class="card stat-card">
+              <div class="stat-icon red">🌡️</div>
+              <div class="stat-info">
+                <div class="stat-label">Temperature</div>
+                <div class="stat-value" id="s-temp-val">29.4°C</div>
+                <div class="stat-delta">DHT11 Ambient</div>
+              </div>
+            </div>
+            <div class="card stat-card">
+              <div class="stat-icon cyan">💧</div>
+              <div class="stat-info">
+                <div class="stat-label">Humidity</div>
+                <div class="stat-value" id="s-hum-val">76.2%</div>
+                <div class="stat-delta">Relative Humidity</div>
+              </div>
+            </div>
+            <div class="card stat-card">
+              <div class="stat-icon navy">📈</div>
+              <div class="stat-info">
+                <div class="stat-label">Total Accel</div>
+                <div class="stat-value" id="s-accel-val">9.81 m/s²</div>
+                <div class="stat-delta">Resultant Vector</div>
+              </div>
+            </div>
+            <div class="card stat-card">
+              <div class="stat-icon orange">🧭</div>
+              <div class="stat-info">
+                <div class="stat-label">Spatial Tilt</div>
+                <div class="stat-value" id="s-tilt-val">4.2°</div>
+                <div class="stat-delta"><span class="badge badge-normal" id="s-motion-badge">NORMAL</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-dashboard" style="margin-bottom: 1.75rem;">
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">DHT11 Temperature & Humidity Trend</h3>
+                <span style="font-size:0.75rem; color:var(--text-muted);">Live stream</span>
+              </div>
+              <div style="height: 280px;"><canvas id="chart-temp-hum"></canvas></div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">MPU6050 Spatial Orientation</h3>
+                <span class="badge" style="background:var(--accent-cyan-glow); color:var(--primary-navy);">6-DOF IMU</span>
+              </div>
+              <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:0.75rem;">Pitch and roll calculated from 3-axis vectors.</p>
+              <div class="imu-canvas-container">
+                <canvas id="vest-canvas" width="280" height="200"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2" style="margin-bottom: 1.75rem;">
+            <div class="card">
+              <div class="card-header"><h3 class="card-title">MPU6050 Accelerometer (X, Y, Z)</h3><span style="font-size:0.75rem;">m/s²</span></div>
+              <div style="height: 240px;"><canvas id="chart-accel"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h3 class="card-title">MPU6050 Gyroscope (X, Y, Z)</h3><span style="font-size:0.75rem;">rad/s</span></div>
+              <div style="height: 240px;"><canvas id="chart-gyro"></canvas></div>
+            </div>
+          </div>
+
+          <!-- Piezoelectric Fibre Monitoring - Explicit Future Section -->
+          <div class="card" style="border: 2px dashed #087CA7; background: linear-gradient(135deg, rgba(7, 27, 51, 0.02), rgba(24, 198, 217, 0.06));">
+            <div class="card-header">
+              <div>
+                <span class="badge" style="background:#FFF3CD; color:#856404; font-weight:800; margin-bottom:0.35rem;">DEVELOPMENT SECTION – FUTURE SENSOR INTEGRATION</span>
+                <h3 class="card-title" style="color:var(--primary-navy);">Piezoelectric Fibre Bio-Mechanical Strain Monitoring</h3>
+              </div>
+              <span class="badge badge-warning">STANDBY FOR HARDWARE HARNESS</span>
+            </div>
+            <div class="grid-dashboard" style="align-items:center;">
+              <div>
+                <p style="font-size:0.85rem; color:var(--text-muted); line-height:1.6; margin-bottom:0.75rem;">
+                  Piezoelectric yarn fibres woven into the chest harness generate micro-volt charges during wearer breathing expansion and cardiac pulse. 
+                  Enables passive vitals without skin electrodes.
+                </p>
+                <div style="font-size:0.75rem; color:var(--text-muted); font-style:italic;">
+                  * Note: In compliance with project guidelines, no fabricated live readings are claimed. The oscilloscope below shows the calibrated reference curve.
+                </div>
+              </div>
+              <div>
+                <canvas id="piezo-preview-canvas" class="piezo-canvas" width="400" height="120"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================ -->
+        <!-- TAB 3: GPS LOCATION TRACKING                                     -->
+        <!-- ================================================================ -->
+        <div class="tab-view" id="view-gps">
+          <div class="grid-4" style="margin-bottom: 1.75rem;">
+            <div class="card stat-card">
+              <div class="stat-icon cyan">📍</div>
+              <div class="stat-info">
+                <div class="stat-label">Latitude</div>
+                <div class="stat-value" id="gps-lat" style="font-size:1.35rem;">8.1251° N</div>
+                <div class="stat-delta">North Axis</div>
+              </div>
+            </div>
+            <div class="card stat-card">
+              <div class="stat-icon navy">🌐</div>
+              <div class="stat-info">
+                <div class="stat-label">Longitude</div>
+                <div class="stat-value" id="gps-lng" style="font-size:1.35rem;">77.4721° E</div>
+                <div class="stat-delta">East Axis</div>
+              </div>
+            </div>
+            <div class="card stat-card">
+              <div class="stat-icon green">🛰️</div>
+              <div class="stat-info">
+                <div class="stat-label">GPS Fix</div>
+                <div style="margin-top:0.35rem;"><span class="badge badge-normal">3D LOCK (8 SATS)</span></div>
+                <div class="stat-delta">NEO-6M Module</div>
+              </div>
+            </div>
+            <div class="card stat-card">
+              <div class="stat-icon orange">⚓</div>
+              <div class="stat-info">
+                <div class="stat-label">Active Vessel</div>
+                <div class="stat-value" style="font-size:1.15rem;">St. Mary Trawler</div>
+                <div class="stat-delta">MG001</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom: 1.75rem;">
+            <div class="card-header">
+              <h3 class="card-title">Interactive Maritime Tracking Map</h3>
+              <span class="badge" style="background:#E2E8F0; color:#333;">OpenStreetMap Ocean Tiles</span>
+            </div>
+            <div id="full-gps-map" style="height: 520px; border-radius: var(--radius-md);"></div>
+          </div>
+        </div>
+
+        <!-- ================================================================ -->
+        <!-- TAB 4: EMERGENCY INCIDENTS                                       -->
+        <!-- ================================================================ -->
+        <div class="tab-view" id="view-alerts">
+          <div class="card" style="margin-bottom: 1.5rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+              <h3 class="card-title">Maritime Emergency Incidents & SAR Response</h3>
+              <button class="btn btn-primary btn-sm" onclick="exportAlertsCSV()">📥 Export Incident Log (CSV)</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="table-responsive">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Alert ID</th>
+                    <th>Device</th>
+                    <th>Category</th>
+                    <th>Severity</th>
+                    <th>Diagnosis Description</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="alerts-page-tbody">
+                  <tr>
+                    <td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">
+                      No active emergency alerts recorded.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================ -->
+        <!-- TAB 5: DEVICE REGISTRY                                           -->
+        <!-- ================================================================ -->
+        <div class="tab-view" id="view-devices">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+            <h2 style="font-size:1.3rem; font-weight:800;">Registered Smart Rescue Jackets</h2>
+            <button class="btn btn-primary" onclick="openAddDeviceModal()">+ Provision New Jacket</button>
+          </div>
+
+          <div class="grid-3" id="devices-grid">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- ================================================================ -->
+        <!-- TAB 6: REPORTS & ANALYTICS                                       -->
+        <!-- ================================================================ -->
+        <div class="tab-view" id="view-analytics">
+          <div class="grid-2" style="margin-bottom: 1.75rem;">
+            <div class="card">
+              <div class="card-header"><h3 class="card-title">Incident Breakdown by Type</h3></div>
+              <div style="height: 280px;"><canvas id="chart-pie-alerts"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h3 class="card-title">Fleet Telemetry Uptime (%)</h3></div>
+              <div style="height: 280px;"><canvas id="chart-bar-uptime"></canvas></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Data Export Hub</h3>
+            </div>
+            <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+              <button class="btn btn-primary" onclick="exportAlertsCSV()">📥 Export Incident Records (CSV)</button>
+              <button class="btn btn-outline" onclick="exportSensorsCSV()">📥 Export Raw Telemetry (CSV)</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================ -->
+        <!-- TAB 7: SAFETY THRESHOLDS & SETTINGS                              -->
+        <!-- ================================================================ -->
+        <div class="tab-view" id="view-settings">
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">Configurable Safety Rules</h3>
+                <span class="badge" style="background:var(--accent-cyan-glow); color:var(--primary-navy);">RULE ENGINE</span>
+              </div>
+              <form onsubmit="saveThresholds(event)">
+                <div class="form-group">
+                  <label class="form-label">Fall Impact Trigger (g-force)</label>
+                  <input type="number" step="0.1" id="cfg-impact" class="form-input" value="2.8">
+                  <span style="font-size:0.72rem; color:var(--text-muted);">Default: 2.8g</span>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Abnormal Tilt Limit (Degrees)</label>
+                  <input type="number" step="1" id="cfg-tilt" class="form-input" value="65">
+                  <span style="font-size:0.72rem; color:var(--text-muted);">Default: 65°</span>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Inactivity Timeout (Seconds)</label>
+                  <input type="number" step="5" id="cfg-inactivity" class="form-input" value="120">
+                  <span style="font-size:0.72rem; color:var(--text-muted);">Default: 120s</span>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Alert Cooldown (Seconds)</label>
+                  <input type="number" step="5" id="cfg-cooldown" class="form-input" value="60">
+                  <span style="font-size:0.72rem; color:var(--text-muted);">Prevents duplicate alert spamming.</span>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">Save Safety Rules</button>
+              </form>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><h3 class="card-title">System & Operator Profile</h3></div>
+              <div style="font-size:0.9rem; display:flex; flex-direction:column; gap:0.75rem;">
+                <div><strong>Central System:</strong> Marine Guard Autonomous Maritime SAR</div>
+                <div><strong>Operator Role:</strong> Chief SAR Commander (admin@marineguard.io)</div>
+                <div><strong>Hardware Firmware:</strong> v1.4.2-ESP32 Core</div>
+                <div><strong>Active Network:</strong> Autonomous Hybrid Simulation / Hardware Ready</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================ -->
+        <!-- TAB 8: PROJECT SHOWCASE (LANDING)                                -->
+        <!-- ================================================================ -->
+        <div class="tab-view" id="view-landing">
+          <div class="card" style="background:linear-gradient(135deg, #071B33, #087CA7); color:white; padding:3rem; margin-bottom:2rem; text-align:center;">
+            <span class="badge" style="background:var(--accent-cyan); color:var(--primary-navy); margin-bottom:1rem; font-weight:800;">
+              UN SDG 14 & SDG 3 ALIGNED
+            </span>
+            <h2 style="font-size:2.4rem; font-weight:800; margin-bottom:1rem;">Every Alert Matters. Every Life Counts.</h2>
+            <p style="font-size:1.1rem; max-width:800px; margin:0 auto 2rem; color:#D1E0EE; line-height:1.6;">
+              Marine Guard is an AI and IoT-enabled maritime rescue system empowering small-scale artisanal fishermen with real-time wearable safety monitoring.
+            </p>
+            <button class="btn btn-accent" style="padding:0.85rem 2rem; font-size:1rem;" onclick="switchTab('dashboard')">
+              Return to Active SAR Dashboard →
+            </button>
+          </div>
+
+          <div class="grid-3">
+            <div class="card" style="border-top:5px solid #0A97D9;">
+              <span class="badge" style="background:#0A97D9; color:white; margin-bottom:0.75rem;">UN SDG 14</span>
+              <h3 style="font-size:1.15rem; font-weight:700; margin-bottom:0.5rem;">Life Below Water</h3>
+              <p style="font-size:0.85rem; color:var(--text-muted); line-height:1.6;">
+                Protects traditional fishing communities with low-cost open-source safety wearable integration.
+              </p>
+            </div>
+            <div class="card" style="border-top:5px solid #4C9F38;">
+              <span class="badge" style="background:#4C9F38; color:white; margin-bottom:0.75rem;">UN SDG 3</span>
+              <h3 style="font-size:1.15rem; font-weight:700; margin-bottom:0.5rem;">Good Health & Well-being</h3>
+              <p style="font-size:0.85rem; color:var(--text-muted); line-height:1.6;">
+                Automated detection of hypothermia, trauma impacts, and unconsciousness at sea.
+              </p>
+            </div>
+            <div class="card" style="border-top:5px solid #A21942;">
+              <span class="badge" style="background:#A21942; color:white; margin-bottom:0.75rem;">UN SDG 8</span>
+              <h3 style="font-size:1.15rem; font-weight:700; margin-bottom:0.5rem;">Decent Work & Growth</h3>
+              <p style="font-size:0.85rem; color:var(--text-muted); line-height:1.6;">
+                Modernizes occupational safety protocols across hazardous coastal marine fleets.
+              </p>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal for Adding Device -->
+  <div class="modal-overlay" id="device-modal">
+    <div class="modal">
+      <h3 style="margin-bottom:1rem; font-size:1.2rem; font-weight:800;">Provision New Smart Rescue Jacket</h3>
+      <div class="form-group">
+        <label class="form-label">Hardware Device ID</label>
+        <input type="text" id="modal-dev-id" class="form-input" placeholder="MG004">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Wearer / Fisherman Name</label>
+        <input type="text" id="modal-dev-user" class="form-input" placeholder="P. Murugan">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Assigned Vessel</label>
+        <input type="text" id="modal-dev-vessel" class="form-input" placeholder="Coastal Falcon 9">
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
+        <button class="btn btn-outline" onclick="closeAddDeviceModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitNewDevice()">Register Jacket</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- ==================================================================== -->
+  <!-- COMPLETE STANDALONE & REAL-TIME LOGIC SCRIPT                         -->
+  <!-- ==================================================================== -->
+  <script>
+    // System State
+    const state = {
+      isSimulation: true,
+      audioMuted: false,
+      safetyStatus: 'NORMAL',
+      devices: [
+        { id: 'MG001', name: 'Rescue Jacket Alpha 1', user: 'K. Selvam (Captain)', vessel: 'St. Mary Trawler', status: 'ONLINE', battery: 94, lat: 8.1251, lng: 77.4721, key: 'mg_key_alpha001_live' },
+        { id: 'MG002', name: 'Rescue Jacket Bravo 2', user: 'M. Antony (Crew)', vessel: 'Sea Falcon 4', status: 'ONLINE', battery: 88, lat: 8.1620, lng: 77.5100, key: 'mg_key_bravo002_live' },
+        { id: 'MG003', name: 'Rescue Jacket Charlie 3', user: 'R. Rajesh (Crew)', vessel: 'Blue Marlin', status: 'ONLINE', battery: 79, lat: 8.0980, lng: 77.4150, key: 'mg_key_charlie003_live' }
+      ],
+      alerts: [],
+      telemetryHistory: []
+    };
+
+    // Navigation Tabs
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
+      const target = document.getElementById(`view-${tabId}`);
+      if (target) target.classList.add('active');
+
+      const btn = Array.from(document.querySelectorAll('.nav-btn')).find(b => b.textContent.toLowerCase().includes(tabId));
+      if (btn) btn.classList.add('active');
+
+      const titles = {
+        dashboard: 'Maritime Rescue Operations Dashboard',
+        sensors: 'Wearable Sensor Telemetry & Kinematics',
+        gps: 'Geospatial GPS Location Tracking',
+        alerts: 'Emergency Incident Management',
+        devices: 'Smart Rescue Jacket Device Registry',
+        analytics: 'Maritime Safety Analytics & Reports',
+        settings: 'System Configuration & Safety Rules',
+        landing: 'Marine Guard System Showcase'
+      };
+      document.getElementById('topbar-title').textContent = titles[tabId] || 'Marine Guard SAR System';
+
+      if (tabId === 'gps' && fullGpsMap) {
+        setTimeout(() => fullGpsMap.invalidateSize(), 200);
+      }
+      if (tabId === 'dashboard' && dashMap) {
+        setTimeout(() => dashMap.invalidateSize(), 200);
+      }
+    }
+
+    // Audio Alarm Synthesizer (Web Audio API)
+    let audioCtx = null;
+    let alarmTimer = null;
+    function playAlarmSound() {
+      if (state.audioMuted) return;
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        document.getElementById('siren-btn').classList.add('active-siren');
+        let high = true;
+
+        const beep = () => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(high ? 950 : 700, audioCtx.currentTime);
+          gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          osc.stop(audioCtx.currentTime + 0.35);
+          high = !high;
+        };
+
+        beep();
+        clearInterval(alarmTimer);
+        alarmTimer = setInterval(beep, 400);
+        setTimeout(() => {
+          clearInterval(alarmTimer);
+          document.getElementById('siren-btn').classList.remove('active-siren');
+        }, 6000);
+      } catch (e) {
+        console.warn('Audio blocked or unavailable:', e);
+      }
+    }
+
+    function toggleAudioAlarm() {
+      state.audioMuted = !state.audioMuted;
+      showToast(state.audioMuted ? 'Alarm siren muted' : 'Alarm siren unmuted', 'info');
+      if (state.audioMuted && alarmTimer) {
+        clearInterval(alarmTimer);
+        document.getElementById('siren-btn').classList.remove('active-siren');
+      }
+    }
+
+    // Theme Toggle
+    function toggleTheme() {
+      const cur = document.documentElement.getAttribute('data-theme');
+      const next = cur === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+    }
+
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('open');
+    }
+
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `<span>${msg}</span><button onclick="this.parentElement.remove()" style="margin-left:auto;">✕</button>`;
+      container.appendChild(toast);
+      setTimeout(() => { toast.remove(); }, 4000);
+    }
+
+    // Maps Initialization
+    let dashMap, fullGpsMap;
+    let markers = {};
+    function initMaps() {
+      if (typeof L === 'undefined') return;
+
+      // Dashboard mini map
+      dashMap = L.map('dash-map').setView([8.1400, 77.4600], 11);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(dashMap);
+
+      // Full GPS map
+      fullGpsMap = L.map('full-gps-map').setView([8.1400, 77.4600], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(fullGpsMap);
+
+      // Safe Zone Circle
+      L.circle([8.1400, 77.4600], {
+        color: '#2A9D8F', fillColor: '#2A9D8F', fillOpacity: 0.12, radius: 6500, weight: 2, dashArray: '6,6'
+      }).addTo(fullGpsMap).bindPopup('<b>Designated Coastal Safe Fishing Zone</b>');
+
+      updateMapMarkers();
+    }
+
+    function updateMapMarkers() {
+      state.devices.forEach(d => {
+        if (!markers[d.id]) {
+          const icon = L.divIcon({
+            className: 'marker-icon',
+            html: `<div style="background:#087CA7; color:white; padding:3px 6px; border-radius:10px; font-weight:700; font-size:11px; border:2px solid white; box-shadow:0 2px 6px rgba(0,0,0,0.3);">⚓ ${d.id}</div>`
+          });
+          if (dashMap) L.marker([d.lat, d.lng], { icon }).addTo(dashMap).bindPopup(`<b>${d.id}</b><br>${d.user}`);
+          if (fullGpsMap) markers[d.id] = L.marker([d.lat, d.lng], { icon }).addTo(fullGpsMap).bindPopup(`<b>${d.id}</b> - ${d.vessel}`);
+        } else {
+          markers[d.id].setLatLng([d.lat, d.lng]);
+        }
+      });
+    }
+
+    // Charts Initialization
+    let tempChart, accelChart, gyroChart, pieChart, barChart;
+    function initCharts() {
+      if (typeof Chart === 'undefined') return;
+
+      // Temp & Humidity
+      tempChart = new Chart(document.getElementById('chart-temp-hum').getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            { label: 'Temp (°C)', borderColor: '#E63946', data: [], tension: 0.3 },
+            { label: 'Humidity (%)', borderColor: '#087CA7', data: [], tension: 0.3 }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      // Accel
+      accelChart = new Chart(document.getElementById('chart-accel').getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            { label: 'X', borderColor: '#E63946', data: [] },
+            { label: 'Y', borderColor: '#2A9D8F', data: [] },
+            { label: 'Z', borderColor: '#087CA7', data: [] }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, animation: false }
+      });
+
+      // Gyro
+      gyroChart = new Chart(document.getElementById('chart-gyro').getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            { label: 'Gx', borderColor: '#F4A261', data: [] },
+            { label: 'Gy', borderColor: '#18C6D9', data: [] },
+            { label: 'Gz', borderColor: '#9B51E0', data: [] }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, animation: false }
+      });
+
+      // Analytics Charts
+      pieChart = new Chart(document.getElementById('chart-pie-alerts').getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: ['Fall / Impact', 'Abnormal Tilt', 'SOS Distress', 'Hypothermia'],
+          datasets: [{ data: [1, 1, 1, 1], backgroundColor: ['#E63946', '#F4A261', '#B71C1C', '#087CA7'] }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      barChart = new Chart(document.getElementById('chart-bar-uptime').getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: ['MG001', 'MG002', 'MG003'],
+          datasets: [{ label: 'Uptime %', data: [99.5, 98.8, 97.9], backgroundColor: '#087CA7' }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 80, max: 100 } } }
+      });
+    }
+
+    // 3D Vest Canvas Orientation Visualizer
+    function drawVest(pitch, roll) {
+      const canvas = document.getElementById('vest-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      ctx.save();
+      ctx.translate(w / 2, h / 2);
+      ctx.rotate(roll);
+
+      // Vest Body
+      ctx.fillStyle = '#087CA7';
+      ctx.strokeStyle = '#18C6D9';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.roundRect(-45, -55 - pitch * 15, 90, 110, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      // Reflective Stripes
+      ctx.fillStyle = '#FFD700';
+      ctx.fillRect(-40, -25 - pitch * 15, 80, 8);
+      ctx.fillRect(-40, 10 - pitch * 15, 80, 8);
+
+      ctx.restore();
+    }
+
+    // Piezoelectric Reference Waveform
+    function animatePiezo() {
+      const canvas = document.getElementById('piezo-preview-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let t = 0;
+      function loop() {
+        ctx.fillStyle = '#071B33';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = '#18C6D9';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const midY = canvas.height / 2;
+        for (let x = 0; x < canvas.width; x++) {
+          const y = midY + Math.sin((x + t) * 0.05) * 18 * Math.sin(t * 0.02);
+          if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        t += 2;
+        requestAnimationFrame(loop);
+      }
+      loop();
+    }
+
+    // Simulation Engine Tick (Every 3 seconds)
+    function runSimulationTick() {
+      if (!state.isSimulation) return;
+
+      const timeStr = new Date().toLocaleTimeString();
+      const temp = Number((29.2 + (Math.random() - 0.5) * 0.5).toFixed(1));
+      const hum = Number((76.0 + (Math.random() - 0.5) * 1.0).toFixed(1));
+      const ax = Number((Math.sin(Date.now() / 1500) * 0.35).toFixed(3));
+      const ay = Number((Math.cos(Date.now() / 1300) * 0.30).toFixed(3));
+      const az = Number((9.80 + Math.sin(Date.now() / 1000) * 0.25).toFixed(3));
+      const gx = Number(((Math.random() - 0.5) * 0.04).toFixed(3));
+      const gy = Number(((Math.random() - 0.5) * 0.03).toFixed(3));
+      const gz = Number(((Math.random() - 0.5) * 0.02).toFixed(3));
+
+      // Update UI elements
+      document.getElementById('dash-live-temp').textContent = `${temp}°C`;
+      document.getElementById('dash-live-hum').textContent = `${hum}%`;
+      document.getElementById('s-temp-val').textContent = `${temp}°C`;
+      document.getElementById('s-hum-val').textContent = `${hum}%`;
+      document.getElementById('s-accel-val').textContent = `${az} m/s²`;
+
+      // Update Charts
+      if (tempChart) {
+        tempChart.data.labels.push(timeStr);
+        tempChart.data.datasets[0].data.push(temp);
+        tempChart.data.datasets[1].data.push(hum);
+        if (tempChart.data.labels.length > 20) {
+          tempChart.data.labels.shift();
+          tempChart.data.datasets.forEach(d => d.data.shift());
+        }
+        tempChart.update();
+      }
+
+      if (accelChart) {
+        accelChart.data.labels.push(timeStr);
+        accelChart.data.datasets[0].data.push(ax);
+        accelChart.data.datasets[1].data.push(ay);
+        accelChart.data.datasets[2].data.push(az);
+        if (accelChart.data.labels.length > 20) {
+          accelChart.data.labels.shift();
+          accelChart.data.datasets.forEach(d => d.data.shift());
+        }
+        accelChart.update();
+      }
+
+      if (gyroChart) {
+        gyroChart.data.labels.push(timeStr);
+        gyroChart.data.datasets[0].data.push(gx);
+        gyroChart.data.datasets[1].data.push(gy);
+        gyroChart.data.datasets[2].data.push(gz);
+        if (gyroChart.data.labels.length > 20) {
+          gyroChart.data.labels.shift();
+          gyroChart.data.datasets.forEach(d => d.data.shift());
+        }
+        gyroChart.update();
+      }
+
+      drawVest(ax, ay);
+    }
+
+    // Trigger Simulated Emergency
+    function triggerSimulatedEmergency(type) {
+      playAlarmSound();
+      const id = 'ALT-' + Math.floor(100000 + Math.random() * 900000);
+      let alertItem = {
+        id, devId: 'MG001', user: 'K. Selvam (Captain)',
+        type, severity: 'CRITICAL', status: 'NEW',
+        desc: '', time: new Date().toLocaleTimeString()
+      };
+
+      if (type === 'POTENTIAL_FALL') {
+        alertItem.desc = 'High g-force impact spike (3.63g). Potential man overboard fall detected.';
+        drawVest(0.8, 1.2);
+      } else if (type === 'MANUAL_SOS') {
+        alertItem.desc = 'MANUAL DISTRESS BEACON triggered on Smart Jacket MG001.';
+      } else if (type === 'ABNORMAL_TILT') {
+        alertItem.severity = 'HIGH';
+        alertItem.desc = 'Excessive body tilt (78°). Vessel capsizing or wearer destabilized.';
+        drawVest(0.2, 1.4);
+      } else if (type === 'HYPOTHERMIA') {
+        alertItem.severity = 'HIGH';
+        alertItem.desc = 'Cold water immersion hazard. Jacket temperature dropped to 11.2°C.';
+      }
+
+      state.alerts.unshift(alertItem);
+      updateAlertsUI();
+      showToast(`EMERGENCY ALERT: ${type} on MG001!`, 'danger');
+
+      // Update Safety Banner
+      const banner = document.getElementById('global-safety-banner');
+      banner.className = 'safety-banner emergency';
+      document.getElementById('banner-status-title').textContent = 'CRITICAL MARITIME DISTRESS ACTIVE';
+      document.getElementById('banner-status-desc').textContent = alertItem.desc;
+      document.getElementById('dash-emergency-alerts').textContent = state.alerts.filter(a => a.status === 'NEW').length;
+    }
+
+    function updateAlertsUI() {
+      const badge = document.getElementById('sidebar-alert-badge');
+      const newCount = state.alerts.filter(a => a.status === 'NEW').length;
+      badge.textContent = newCount;
+      badge.style.display = newCount > 0 ? 'inline-block' : 'none';
+
+      // Dash Table
+      const dashTbody = document.getElementById('dash-events-tbody');
+      if (dashTbody) {
+        if (state.alerts.length === 0) {
+          dashTbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:1.5rem; color:var(--text-muted);">Normal fleet operations.</td></tr>';
+        } else {
+          dashTbody.innerHTML = state.alerts.slice(0, 5).map(a => `
+            <tr>
+              <td><strong>${a.id}</strong></td>
+              <td>${a.devId}</td>
+              <td>${a.user}</td>
+              <td><span class="tag-critical">${a.severity}</span></td>
+              <td>${a.desc}</td>
+              <td>
+                ${a.status === 'NEW' 
+                  ? `<button class="btn btn-sm btn-primary" onclick="resolveAlert('${a.id}')">Acknowledge</button>` 
+                  : `<span class="badge badge-normal">RESOLVED</span>`}
+              </td>
+            </tr>
+          `).join('');
+        }
+      }
+
+      // Alerts Page Table
+      const alertsTbody = document.getElementById('alerts-page-tbody');
+      if (alertsTbody) {
+        if (state.alerts.length === 0) {
+          alertsTbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No recorded emergencies.</td></tr>';
+        } else {
+          alertsTbody.innerHTML = state.alerts.map(a => `
+            <tr>
+              <td><strong>${a.id}</strong></td>
+              <td>${a.devId}</td>
+              <td>${a.type}</td>
+              <td><span class="tag-critical">${a.severity}</span></td>
+              <td>${a.desc}</td>
+              <td><span class="badge ${a.status === 'NEW' ? 'badge-emergency' : 'badge-normal'}">${a.status}</span></td>
+              <td>
+                ${a.status === 'NEW' 
+                  ? `<button class="btn btn-sm btn-outline" onclick="resolveAlert('${a.id}')">Mark Resolved</button>` 
+                  : `✓ Safe`}
+              </td>
+            </tr>
+          `).join('');
+        }
+      }
+    }
+
+    function resolveAlert(id) {
+      const a = state.alerts.find(x => x.id === id);
+      if (a) {
+        a.status = 'RESOLVED';
+        updateAlertsUI();
+        showToast(`Alert ${id} resolved. Status marked safe.`, 'success');
+        if (state.alerts.filter(x => x.status === 'NEW').length === 0) {
+          const banner = document.getElementById('global-safety-banner');
+          banner.className = 'safety-banner normal';
+          document.getElementById('banner-status-title').textContent = 'NORMAL RESCUE READINESS';
+          document.getElementById('banner-status-desc').textContent = 'All monitored marine vessels & wearers are within safe operating bounds.';
+          document.getElementById('dash-emergency-alerts').textContent = '0';
+        }
+      }
+    }
+
+    // Devices List Render
+    function renderDevices() {
+      const grid = document.getElementById('devices-grid');
+      if (!grid) return;
+      grid.innerHTML = state.devices.map(d => `
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <span class="card-title">${d.id}</span>
+              <div class="card-subtitle">${d.name}</div>
+            </div>
+            <span class="badge badge-normal">${d.status}</span>
+          </div>
+          <div style="font-size:0.85rem; display:flex; flex-direction:column; gap:0.4rem; margin-bottom:1rem;">
+            <div><strong>Wearer:</strong> ${d.user}</div>
+            <div><strong>Vessel:</strong> ${d.vessel}</div>
+            <div><strong>Battery:</strong> ${d.battery}%</div>
+            <div><strong>Sensors:</strong> DHT11: ✓ | MPU6050: ✓ | GPS: ✓</div>
+          </div>
+          <div style="background:var(--bg-app); padding:0.5rem; border-radius:var(--radius-sm); font-size:0.75rem; word-break:break-all;">
+            Token: <code>${d.key}</code>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Add Device Modal
+    function openAddDeviceModal() { document.getElementById('device-modal').classList.add('active'); }
+    function closeAddDeviceModal() { document.getElementById('device-modal').classList.remove('active'); }
+    function submitNewDevice() {
+      const id = document.getElementById('modal-dev-id').value.trim();
+      const user = document.getElementById('modal-dev-user').value.trim();
+      const vessel = document.getElementById('modal-dev-vessel').value.trim();
+      if (!id) return;
+      state.devices.push({
+        id, name: `Rescue Jacket ${id}`, user: user || 'Unassigned',
+        vessel: vessel || 'Fleet', status: 'ONLINE', battery: 100, lat: 8.13, lng: 77.48, key: `mg_key_${id.toLowerCase()}`
+      });
+      renderDevices();
+      closeAddDeviceModal();
+      showToast(`Device ${id} provisioned successfully!`, 'success');
+    }
+
+    // CSV Exports (Browser generated)
+    function exportAlertsCSV() {
+      let csv = 'AlertID,DeviceID,Type,Severity,Status,Description\n';
+      state.alerts.forEach(a => {
+        csv += `"${a.id}","${a.devId}","${a.type}","${a.severity}","${a.status}","${a.desc}"\n`;
+      });
+      downloadFile(csv, `marine_guard_alerts_${Date.now()}.csv`);
+    }
+
+    function exportSensorsCSV() {
+      let csv = 'DeviceID,Timestamp,Temp,Humidity,Lat,Lng\n';
+      csv += `"MG001","${new Date().toISOString()}",29.4,76.2,8.1251,77.4721\n`;
+      downloadFile(csv, `marine_guard_telemetry_${Date.now()}.csv`);
+    }
+
+    function downloadFile(content, filename) {
+      const blob = new Blob([content], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`Exported ${filename}`, 'info');
+    }
+
+    // Safety Threshold Save
+    function saveThresholds(e) {
+      e.preventDefault();
+      showToast('Emergency safety rules saved successfully!', 'success');
+    }
+
+    // Startup Initialization
+    window.addEventListener('DOMContentLoaded', () => {
+      initMaps();
+      initCharts();
+      renderDevices();
+      animatePiezo();
+      setInterval(runSimulationTick, 3000);
+      showToast('Marine Guard Platform initialized. All systems online.', 'info');
+    });
+  </script>
+</body>
+</html>

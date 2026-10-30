@@ -1,0 +1,162 @@
+/**
+ * Marine Guard - Main Dashboard Controller
+ */
+document.addEventListener('DOMContentLoaded', async () => {
+  AuthManager.checkAuthGuard();
+  SimulationControls.renderDemoBar('demo-controller-placeholder');
+
+  let miniMap = null;
+  let markers = {};
+
+  initMiniMap();
+  await loadSummary();
+  setupRealtimeListeners();
+
+  async function loadSummary() {
+    try {
+      const data = await ApiClient.get('/reports/summary');
+      if (!data.success) return;
+
+      const { summary, recentEvents } = data;
+
+      // Update stat counters
+      document.getElementById('stat-total-devices').textContent = summary.totalDevices;
+      document.getElementById('stat-active-devices').textContent = summary.activeDevices;
+      document.getElementById('stat-emergency-alerts').textContent = summary.newAlerts;
+      document.getElementById('stat-comm-issues').textContent = summary.communicationIssues;
+
+      // Update Marine Safety Status Banner
+      updateSafetyBanner(summary.marineSafetyStatus);
+
+      // Render Recent Events
+      renderRecentEvents(recentEvents);
+    } catch (err) {
+      console.error('Failed to load dashboard summary:', err.message);
+    }
+  }
+
+  function updateSafetyBanner(status) {
+    const banner = document.getElementById('safety-status-banner');
+    const badge = document.getElementById('safety-status-badge');
+    const desc = document.getElementById('safety-status-desc');
+    if (!banner || !badge) return;
+
+    banner.className = 'safety-banner';
+
+    switch (status) {
+      case 'EMERGENCY':
+        banner.classList.add('status-emergency');
+        badge.textContent = 'CRITICAL EMERGENCY';
+        badge.style.color = 'var(--status-emergency)';
+        desc.textContent = 'Active distress alerts requiring immediate Search & Rescue dispatch!';
+        break;
+      case 'WARNING':
+        banner.classList.add('status-warning');
+        badge.textContent = 'CAUTION / WARNING';
+        badge.style.color = 'var(--status-warning)';
+        desc.textContent = 'Elevated motion or environmental deviations recorded. Monitoring vessels.';
+        break;
+      case 'DEVICE OFFLINE':
+        banner.classList.add('status-offline');
+        badge.textContent = 'DEVICES OFFLINE';
+        badge.style.color = 'var(--status-offline)';
+        desc.textContent = 'All wearable rescue jackets are currently disconnected from network.';
+        break;
+      default:
+        banner.classList.add('status-normal');
+        badge.textContent = 'NORMAL RESCUE READINESS';
+        badge.style.color = 'var(--status-normal)';
+        desc.textContent = 'All monitored marine vessels & wearers are within safe operating bounds.';
+        break;
+    }
+  }
+
+  function renderRecentEvents(events) {
+    const container = document.getElementById('recent-events-tbody');
+    if (!container) return;
+
+    if (!events || events.length === 0) {
+      container.innerHTML = `
+        <tr>
+          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+            No emergency alerts logged. All vessels operating in safe conditions.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    container.innerHTML = events.map(e => `
+      <tr>
+        <td><strong>${e.alertId}</strong></td>
+        <td><span class="badge" style="background:rgba(8, 124, 167, 0.1); color:var(--secondary-ocean);">${e.deviceId}</span></td>
+        <td>${e.fishermanName || 'Unknown'}</td>
+        <td><span class="tag-${e.severity.toLowerCase()}">${e.severity}</span></td>
+        <td>${e.message}</td>
+        <td>
+          ${e.status === 'NEW' 
+            ? `<button class="btn btn-sm btn-primary" onclick="acknowledgeAlert('${e.alertId}')">Acknowledge</button>`
+            : `<span class="badge badge-${e.status.toLowerCase()}">${e.status}</span>`
+          }
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function initMiniMap() {
+    const mapEl = document.getElementById('dashboard-mini-map');
+    if (!mapEl || typeof L === 'undefined') return;
+
+    miniMap = L.map('dashboard-mini-map').setView([8.1500, 77.4500], 11);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 18
+    }).addTo(miniMap);
+  }
+
+  function setupRealtimeListeners() {
+    if (!window.SocketInstance) return;
+
+    // Realtime Telemetry
+    window.SocketInstance.onTelemetry((telemetry) => {
+      // Update last received telemetry card
+      const devEl = document.getElementById('live-last-device');
+      const tempEl = document.getElementById('live-last-temp');
+      const humEl = document.getElementById('live-last-hum');
+      const timeEl = document.getElementById('live-last-time');
+
+      if (devEl) devEl.textContent = telemetry.deviceId;
+      if (tempEl) tempEl.textContent = `${telemetry.temperature}°C`;
+      if (humEl) humEl.textContent = `${telemetry.humidity}%`;
+      if (timeEl) timeEl.textContent = new Date().toLocaleTimeString();
+
+      // Update Map Marker
+      if (miniMap && telemetry.latitude && telemetry.longitude) {
+        const id = telemetry.deviceId;
+        if (!markers[id]) {
+          markers[id] = L.marker([telemetry.latitude, telemetry.longitude])
+            .addTo(miniMap)
+            .bindPopup(`<b>${id}</b><br>Lat: ${telemetry.latitude}<br>Lng: ${telemetry.longitude}`);
+        } else {
+          markers[id].setLatLng([telemetry.latitude, telemetry.longitude]);
+        }
+      }
+    });
+
+    // Realtime Alert
+    window.SocketInstance.onAlert((alert) => {
+      loadSummary();
+    });
+  }
+
+  window.acknowledgeAlert = async (alertId) => {
+    try {
+      await ApiClient.patch(`/alerts/${alertId}/acknowledge`, {});
+      ApiClient.showToast(`Alert ${alertId} acknowledged`, 'success');
+      loadSummary();
+    } catch (err) {
+      ApiClient.showToast(`Failed: ${err.message}`, 'danger');
+    }
+  };
+});

@@ -1,0 +1,59 @@
+/**
+ * Marine Guard - Authentication Manager
+ */
+class AuthManager {
+  static getUser() {
+    const raw = localStorage.getItem('mg_user');
+    try {
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  static isAuthenticated() {
+    return Boolean(localStorage.getItem('mg_auth_token'));
+  }
+
+  static setSession(token, user) {
+    localStorage.setItem('mg_auth_token', token);
+    localStorage.setItem('mg_user', JSON.stringify(user));
+  }
+
+  static logout() {
+    localStorage.removeItem('mg_auth_token');
+    localStorage.removeItem('mg_user');
+    window.location.href = 'login.html';
+  }
+
+  static checkAuthGuard(isPublicPage = false) {
+    const isAuth = this.isAuthenticated();
+    const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+
+    if (!isAuth && !isPublicPage && currentPage !== 'login.html' && currentPage !== 'index.html') {
+      window.location.href = 'login.html';
+      return false;
+    }
+    return true;
+  }
+
+  static renderUserBadge() {
+    const user = this.getUser();
+    const avatarEl = document.getElementById('user-avatar-badge');
+    const nameEl = document.getElementById('user-name-badge');
+    const roleEl = document.getElementById('user-role-badge');
+
+    if (user) {
+      if (avatarEl) avatarEl.textContent = user.name ? user.name.charAt(0).toUpperCase() : 'U';
+      if (nameEl) nameEl.textContent = user.name || 'Rescue Officer';
+      if (roleEl) roleEl.textContent = user.role === 'admin' ? 'Administrator' : 'Rescue Operator';
+    }
+  }
+}
+
+// Auto-run guard on DOMContentLoaded
+document.addEventListener('DOMContentLoaded', () => {
+  AuthManager.renderUserBadge();
+});
+
+window.AuthManager = AuthManager;

@@ -1,0 +1,52 @@
+/**
+ * Marine Guard - Simulation Demo Controls
+ * Injects sample emergency events for live presentation and testing.
+ */
+class SimulationControls {
+  static async triggerEmergency(deviceId = 'MG001', type = 'POTENTIAL_FALL') {
+    try {
+      ApiClient.showToast(`Simulating event: ${type} on ${deviceId}...`, 'warning');
+      const response = await ApiClient.post('/simulation/trigger-emergency', { deviceId, type });
+      console.log('[Simulation Event Triggered]', response);
+    } catch (err) {
+      ApiClient.showToast(`Error triggering demo event: ${err.message}`, 'danger');
+    }
+  }
+
+  static renderDemoBar(containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+
+    el.innerHTML = `
+      <div class="card" style="background: linear-gradient(135deg, rgba(7, 27, 51, 0.04), rgba(8, 124, 167, 0.08)); border: 1px dashed var(--secondary-ocean); margin-bottom: 1.5rem;">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem;">
+          <div>
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <span class="badge" style="background:var(--secondary-ocean); color:white;">DEMO CONTROLLER</span>
+              <strong style="font-size:0.92rem; color:var(--text-main);">Emergency Event Simulation Sandbox</strong>
+            </div>
+            <p style="font-size:0.78rem; color:var(--text-muted); margin-top:0.2rem;">
+              Trigger instantaneous marine safety distress events to test real-time WebSocket feeds, siren alarms, and SAR workflow.
+            </p>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+            <button class="btn btn-sm btn-emergency" onclick="SimulationControls.triggerEmergency('MG001', 'POTENTIAL_FALL')">
+              ⚡ Fall / Impact (3.6g)
+            </button>
+            <button class="btn btn-sm btn-emergency" style="background:#C0392B;" onclick="SimulationControls.triggerEmergency('MG001', 'MANUAL_SOS')">
+              🆘 Manual SOS Distress
+            </button>
+            <button class="btn btn-sm" style="background:var(--status-warning); color:#fff;" onclick="SimulationControls.triggerEmergency('MG002', 'ABNORMAL_TILT')">
+              ⚠️ Vessel Tilt (78°)
+            </button>
+            <button class="btn btn-sm btn-outline" onclick="SimulationControls.triggerEmergency('MG003', 'HYPOTHERMIA_TEMP')">
+              ❄️ Hypothermia (11°C)
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+}
+
+window.SimulationControls = SimulationControls;

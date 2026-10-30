@@ -1,0 +1,137 @@
+/* ==========================================================================
+   MARINE GUARD - RESPONSIVE & MOBILE DESIGN STYLES
+   Breakpoints: 1200px, 1024px, 768px, 480px
+   ========================================================================== */
+
+/* Large Tablets & Small Laptops */
+@media (max-width: 1200px) {
+  .grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .grid-dashboard {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tablets (Portrait) */
+@media (max-width: 1024px) {
+  .grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .sidebar {
+    transform: translateX(-100%);
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.4);
+  }
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+  .main-wrapper {
+    margin-left: 0;
+  }
+  .mobile-toggle {
+    display: flex;
+  }
+  .topbar {
+    padding: 0 1rem;
+  }
+}
+
+/* Mobile Phones (Android / iPhone) */
+@media (max-width: 768px) {
+  :root {
+    --topbar-height: 60px;
+  }
+
+  .page-content {
+    padding: 1rem;
+  }
+
+  .grid-2, .grid-3, .grid-4 {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .stat-card {
+    padding: 1rem;
+  }
+
+  .stat-value {
+    font-size: 1.5rem;
+  }
+
+  .card {
+    padding: 1.25rem;
+  }
+
+  .page-title-box h1 {
+    font-size: 1.15rem;
+  }
+
+  .page-title-box p {
+    display: none;
+  }
+
+  .safety-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+
+  .topbar-right {
+    gap: 0.5rem;
+  }
+
+  .sim-mode-badge span:not(.pulse-dot) {
+    display: none;
+  }
+
+  .toast-container {
+    bottom: 1rem;
+    right: 1rem;
+    left: 1rem;
+    max-width: none;
+  }
+
+  /* Make interactive controls touch friendly */
+  .btn, .form-input, .form-select {
+    min-height: 44px;
+  }
+
+  .table th, .table td {
+    padding: 0.65rem 0.5rem;
+    font-size: 0.8rem;
+  }
+}
+
+/* Small Screens (Below 480px) */
+@media (max-width: 480px) {
+  .btn {
+    width: 100%;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .modal {
+    padding: 1.25rem;
+  }
+}
+
+/* Backdrop overlay when mobile drawer is open */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 15, 29, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 95;
+  transition: opacity 0.3s ease;
+}
+
+.sidebar-backdrop.active {
+  display: block;
+}

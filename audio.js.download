@@ -1,0 +1,119 @@
+/**
+ * Marine Guard - Web Audio Synthesizer & Alarm System
+ * Generates maritime distress alarm tones locally using Web Audio API.
+ * Includes mute/unmute toggles and audio safety guards.
+ */
+class SoundAlarmSystem {
+  constructor() {
+    this.audioCtx = null;
+    this.isPlaying = false;
+    this.isMuted = localStorage.getItem('mg_alarm_muted') === 'true';
+    this.oscillator1 = null;
+    this.oscillator2 = null;
+    this.gainNode = null;
+    this.intervalId = null;
+  }
+
+  initContext() {
+    if (!this.audioCtx) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      this.audioCtx = new AudioContext();
+    }
+    if (this.audioCtx.state === 'suspended') {
+      this.audioCtx.resume();
+    }
+  }
+
+  playAlarm() {
+    if (this.isMuted || this.isPlaying) return;
+
+    try {
+      this.initContext();
+      this.isPlaying = true;
+
+      const btn = document.getElementById('audio-mute-btn');
+      if (btn) btn.classList.add('active-siren');
+
+      // Create alternating tone generator
+      let highTone = true;
+      this.playTone(850);
+
+      this.intervalId = setInterval(() => {
+        if (!this.isPlaying) return;
+        highTone = !highTone;
+        this.playTone(highTone ? 950 : 700);
+      }, 400);
+
+      // Auto-stop continuous siren after 8 seconds to prevent annoyance
+      setTimeout(() => {
+        this.stopAlarm();
+      }, 8000);
+    } catch (err) {
+      console.warn('[Audio] Could not play alarm sound:', err.message);
+    }
+  }
+
+  playTone(freq) {
+    if (!this.audioCtx || this.isMuted) return;
+
+    const osc = this.audioCtx.createOscillator();
+    const gain = this.audioCtx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(freq, this.audioCtx.currentTime);
+
+    // Envelope
+    gain.gain.setValueAtTime(0.15, this.audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.audioCtx.currentTime + 0.35);
+
+    osc.connect(gain);
+    gain.connect(this.audioCtx.destination);
+
+    osc.start();
+    osc.stop(this.audioCtx.currentTime + 0.35);
+  }
+
+  stopAlarm() {
+    this.isPlaying = false;
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    const btn = document.getElementById('audio-mute-btn');
+    if (btn) btn.classList.remove('active-siren');
+  }
+
+  toggleMute() {
+    this.isMuted = !this.isMuted;
+    localStorage.setItem('mg_alarm_muted', String(this.isMuted));
+    if (this.isMuted) {
+      this.stopAlarm();
+    }
+    this.updateMuteUI();
+    return this.isMuted;
+  }
+
+  updateMuteUI() {
+    const btn = document.getElementById('audio-mute-btn');
+    if (btn) {
+      btn.innerHTML = this.isMuted
+        ? `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>`
+        : `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M11 5L6 9H2v6h4l5 4V5z"/></svg>`;
+      btn.title = this.isMuted ? 'Unmute Emergency Siren' : 'Mute Emergency Siren';
+    }
+  }
+}
+
+window.SoundAlarm = new SoundAlarmSystem();
+
+document.addEventListener('DOMContentLoaded', () => {
+  window.SoundAlarm.updateMuteUI();
+  const btn = document.getElementById('audio-mute-btn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      window.SoundAlarm.initContext();
+      const muted = window.SoundAlarm.toggleMute();
+      ApiClient.showToast(muted ? 'Emergency siren muted' : 'Emergency siren unmuted', 'info');
+    });
+  }
+});

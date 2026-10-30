@@ -1,0 +1,188 @@
+/**
+ * Marine Guard - Socket.IO Manager & Real-Time Dispatcher
+ */
+class SocketManager {
+  constructor() {
+    this.socket = null;
+    this.listeners = {
+      telemetry: [],
+      alert: [],
+      gps: [],
+      status: []
+    };
+  }
+
+  init() {
+    if (typeof io === 'undefined') {
+      console.warn('[Socket.IO] io client library not loaded.');
+      return;
+    }
+
+    const serverUrl = window.location.origin.includes('localhost')
+      ? 'http://localhost:5000'
+      : window.location.origin;
+
+    this.socket = io(serverUrl, {
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000
+    });
+
+    this.socket.on('connect', () => {
+      console.log(`[Socket.IO] Connected to backend! ID: ${this.socket.id}`);
+      this.updateConnectionBadge(true);
+    });
+
+    this.socket.on('disconnect', () => {
+      console.warn('[Socket.IO] Disconnected from backend');
+      this.updateConnectionBadge(false);
+    });
+
+    // Handle Simulation State updates
+    this.socket.on('simulation_state', (state) => {
+      this.updateSimulationUI(state.isRunning);
+    });
+
+    // Handle Incoming Sensor Telemetry
+    this.socket.on('sensor_telemetry', (data) => {
+      this.listeners.telemetry.forEach(cb => cb(data));
+    });
+
+    // Handle Emergency Alerts
+    this.socket.on('emergency_alert', (alert) => {
+      console.warn('[EMERGENCY RECEIVED]', alert);
+      // Play Audio Alarm
+      if (window.SoundAlarm) {
+        window.SoundAlarm.playAlarm();
+      }
+
+      // Show Toast Notification
+      if (window.ApiClient) {
+        window.ApiClient.showToast(
+          `[${alert.severity}] ${alert.message} (${alert.deviceId})`,
+          'danger',
+          `EMERGENCY ALERT: ${alert.alertType}`
+        );
+      }
+
+      // Trigger custom alert callbacks
+      this.listeners.alert.forEach(cb => cb(alert));
+      this.incrementAlertBadge();
+    });
+
+    // Handle GPS updates
+    this.socket.on('gps_update', (data) => {
+      this.listeners.gps.forEach(cb => cb(data));
+    });
+
+    // Handle Safety Status changes
+    this.socket.on('system_status_change', (statusData) => {
+      this.listeners.status.forEach(cb => cb(statusData));
+    });
+  }
+
+  onTelemetry(callback) {
+    this.listeners.telemetry.push(callback);
+  }
+
+  onAlert(callback) {
+    this.listeners.alert.push(callback);
+  }
+
+  onGps(callback) {
+    this.listeners.gps.push(callback);
+  }
+
+  onStatus(callback) {
+    this.listeners.status.push(callback);
+  }
+
+  updateSimulationUI(isRunning) {
+    const badge = document.getElementById('sim-mode-toggle-btn');
+    if (!badge) return;
+
+    if (isRunning) {
+      badge.className = 'sim-mode-badge simulating';
+      badge.innerHTML = `<span class="pulse-dot"></span> <span>SIMULATION MODE (DEMO)</span>`;
+      badge.title = 'Click to switch to Hardware Mode';
+    } else {
+      badge.className = 'sim-mode-badge hardware';
+      badge.innerHTML = `<span style="width:8px; height:8px; border-radius:50%; background:#888; display:inline-block;"></span> <span>HARDWARE MODE (ESP32)</span>`;
+      badge.title = 'Waiting for ESP32 HTTP packets. Click to enable Simulation Mode.';
+    }
+  }
+
+  updateConnectionBadge(isConnected) {
+    const dot = document.getElementById('connection-status-dot');
+    if (dot) {
+      dot.style.background = isConnected ? '#2A9D8F' : '#E63946';
+      dot.title = isConnected ? 'Connected to Marine Guard Real-Time Server' : 'Disconnected from Server';
+    }
+  }
+
+  incrementAlertBadge() {
+    const badges = document.querySelectorAll('.alert-count-badge');
+    badges.forEach(b => {
+      let count = parseInt(b.textContent || '0', 10);
+      b.textContent = count + 1;
+      b.style.display = 'inline-flex';
+    });
+  }
+}
+
+window.SocketInstance = new SocketManager();
+
+document.addEventListener('DOMContentLoaded', () => {
+  window.SocketInstance.init();
+
+  // Attach toggle click handler for simulation button
+  const simToggleBtn = document.getElementById('sim-mode-toggle-btn');
+  if (simToggleBtn) {
+    simToggleBtn.addEventListener('click', async () => {
+      try {
+        const res = await ApiClient.post('/simulation/toggle', {});
+        window.SocketInstance.updateSimulationUI(res.isRunning);
+        ApiClient.showToast(res.message, res.isRunning ? 'info' : 'warning');
+      } catch (err) {
+        console.error('Failed to toggle simulation:', err.message);
+      }
+    });
+  }
+
+  // Theme Toggle Handler
+  const themeToggleBtn = document.getElementById('theme-toggle-btn');
+  const savedTheme = localStorage.getItem('mg_theme') || 'light';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+
+  if (themeToggleBtn) {
+    themeToggleBtn.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('mg_theme', next);
+      ApiClient.showToast(`Switched to ${next} theme`, 'info');
+    });
+  }
+
+  // Mobile sidebar drawer handler
+  const mobileToggle = document.getElementById('mobile-toggle-btn');
+  const sidebar = document.getElementById('sidebar');
+  let backdrop = document.querySelector('.sidebar-backdrop');
+  if (!backdrop) {
+    backdrop = document.createElement('div');
+    backdrop.className = 'sidebar-backdrop';
+    document.body.appendChild(backdrop);
+  }
+
+  if (mobileToggle && sidebar) {
+    mobileToggle.addEventListener('click', () => {
+      sidebar.classList.toggle('mobile-open');
+      backdrop.classList.toggle('active');
+    });
+
+    backdrop.addEventListener('click', () => {
+      sidebar.classList.remove('mobile-open');
+      backdrop.classList.remove('active');
+    });
+  }
+});
